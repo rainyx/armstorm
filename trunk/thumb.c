@@ -26,21 +26,6 @@
 
 #include <memory.h>
 
-static unsigned short read_short(const unsigned char* ptr, _EndianityType endianity)
-{
-#ifdef __BIG_ENDIAN__
-    if (endianity == ENDIANITY_BIG) return *(unsigned short*)ptr;
-    
-    /* ENDNIANITY_LITTLE. */
-    return return (ptr[0] << 8) | ptr[1];
-#else
-    if (endianity == ENDIANITY_BIG) return (ptr[0] << 8) | ptr[1];
-    
-    /* ENDNIANITY_LITTLE. */
-    return *(unsigned short*)ptr;
-#endif
-}
-
 static const _ThumbInstInfo* decompose_thumb_lookup_instruction(unsigned short instruction, unsigned short nextInstruction)
 {
     /* 10 MS bits are the index into the table. Calculate how much to shift right. */
@@ -55,6 +40,9 @@ static const _ThumbInstInfo* decompose_thumb_lookup_instruction(unsigned short i
     /* Is long branch of BL/BLX prefix ? */
     indexer = instruction >> 11; /* Get highest 5 bits. */
     if (indexer == 0xf000) {
+        /* Get the second part of the instruction. */
+        indexer = nextInstruction >> 11;
+        
         if (indexer == 0xe800) { /* BLX suffix. */
             if (nextInstruction & 1) return NULL; // If LSB is set, it's undefined.
             static _ThumbInstInfo ThumbInfo_BLX = {I_BLX, FLAG_BIG_INST, OT_OFF11, OT_NONE, OT_NONE};
@@ -71,7 +59,12 @@ static const _ThumbInstInfo* decompose_thumb_lookup_instruction(unsigned short i
     return NULL;
 }
 
-static int decompose_thumb_operand(unsigned short instruction, unsigned short nextInstruction, _OpType oType, unsigned int* opIndex, _DInst* pdi)
+static int decompose_thumb_operand(unsigned short instruction,
+                                   unsigned short nextInstruction,
+                                   _OpType oType,
+                                   _iflags instFlags,
+                                   unsigned int* opIndex,
+                                   _DInst* pdi)
 {
     /* The reason we use an indexer is because some operands are optional and we want to skip them. */
     _Operand* op = &pdi->operands[*opIndex];
@@ -204,7 +197,7 @@ static int decompose_thumb_operand(unsigned short instruction, unsigned short ne
     }
     
     /* Fix scale for immediates for STR/LD opcodes. */
-    if ((pdi->flags & FLAG_SCALE_REQ) && (op->type == OPERAND_IMM)) {
+    if ((instFlags & FLAG_SCALE_REQ) && (op->type == OPERAND_IMM)) {
         int scale;
         switch (pdi->opcode)
         {
@@ -230,6 +223,7 @@ static int decompose_thumb_instruction(unsigned short instruction, unsigned shor
     int ret;
     unsigned int operandIndex = 0;
     const _ThumbInstInfo* ii;
+    _iflags instFlags;
     
     ii = decompose_thumb_lookup_instruction(instruction, nextInstruction);
     if (ii == NULL) {
@@ -237,22 +231,23 @@ static int decompose_thumb_instruction(unsigned short instruction, unsigned shor
         return 0;
     }
     pdi->opcode = ii->mnemonicId;
-    pdi->flags = ii->flags;
+    instFlags = ii->flags;
+    pdi->flags = instFlags & FLAGS_EXPORTED_MASK; /* Copy only user valid flags. */
     
     /* If there's an operand to decode, go for it, otherwise quit. */
     
     if (ii->op1 != OT_NONE) {
-        ret = decompose_thumb_operand(instruction, nextInstruction, ii->op1, &operandIndex, pdi);
+        ret = decompose_thumb_operand(instruction, nextInstruction, ii->op1, instFlags, &operandIndex, pdi);
         if (!ret) return 0;
     } else return 1;
     
     if (ii->op2 != OT_NONE) {
-        ret = decompose_thumb_operand(instruction, nextInstruction, ii->op2, &operandIndex, pdi);
+        ret = decompose_thumb_operand(instruction, nextInstruction, ii->op2, instFlags, &operandIndex, pdi);
         if (!ret) return 0;
     } else return 1;
     
     if (ii->op3 != OT_NONE) {
-        ret = decompose_thumb_operand(instruction, nextInstruction, ii->op3, &operandIndex, pdi);
+        ret = decompose_thumb_operand(instruction, nextInstruction, ii->op3, instFlags, &operandIndex, pdi);
         if (!ret) return 0;
     }
     
@@ -265,7 +260,7 @@ _DecodeResult decompose_thumb(_DecomposeInfo* info)
     unsigned int instsNo = 0;
     unsigned short instruction, nextInstruction;
     _DInst* pdi;
-    
+
     while ((info->codeLength > 0) && (instsNo < info->maxInstructions)) {
         /* Read current instruction from stream. */
         instruction = read_short(info->code, info->endianity);
@@ -274,6 +269,7 @@ _DecodeResult decompose_thumb(_DecomposeInfo* info)
         if ((info->codeLength - 2) >= 2) {
             nextInstruction = read_short(info->code + 2, info->endianity);
         } else {
+            /* 0 is an ok value, since the nextInstruction is only tested for long branch suffix. */
             nextInstruction = 0;
         }
         

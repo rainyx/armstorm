@@ -22,15 +22,17 @@
 #ifndef armstorm_defs_h
 #define armstorm_defs_h
 
-/* Instruction wasn't found or has an invalid operand. */
-#define FLAG_INVALID    1
-/* Immediate should be sign extended. */
-#define FLAG_SIGNED_IMM 2
-/* NOT SET: THUMB = 2. SET: ARM = 4, THUMB_BL = 4! */
-#define FLAG_BIG_INST   4
+/* Some flags are defined in armstorm.h and are useable by the user. */
+
+/* Use this mask to filter the flags that the user can't see. */
+#define FLAGS_EXPORTED_MASK (0xf)
+
+/* The following are not exported to the user and are internal only. */
+
 /* Immediate requires scale according to opcode. */
-#define FLAG_SCALE_REQ  8
-/* Load or store. */
-#define FLAG_MEMORY     16
+#define FLAG_SCALE_REQ  0x10
+
+unsigned short read_short(const unsigned char* ptr, _EndianityType endianity);
+unsigned long read_long(const unsigned char* ptr, _EndianityType endianity);
 
 #endif /* armstorm_defs_h */

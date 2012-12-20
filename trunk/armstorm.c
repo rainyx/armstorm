@@ -77,7 +77,7 @@ static void format_operand(char* str, const _Operand* op, const _DInst* pdi)
     switch (op->type)
     {
         case OPERAND_REG:
-            strcat(str, (const char*)_REGISTERS[op->value]);
+            strcat(str, GET_REGISTER_NAME(op->value));
             break;
         case OPERAND_IMM:
             sprintf(buf, "#0x%x", op->value);
@@ -98,17 +98,30 @@ static void format_operand(char* str, const _Operand* op, const _DInst* pdi)
     }
 }
 
-void armstorm_format(const _DInst* inst, _TInst* text, _EndianityType endianity)
+void armstorm_format(const _DecomposeInfo* ci, const _DInst* inst, _TInst* text)
 {
     int isReglist = 0, needComma = 1;
     char* str = text->instruction;
+
+    /* Fill in address. */
+    text->address = inst->address;
+    
+    /* Fill in the size and the hex representation. */
+    if (inst->flags & FLAG_BIG_INST) {
+        text->size = 4;
+        sprintf(text->hex, "%08lx", read_long(&ci->code[inst->address - ci->address], ci->endianity));
+    } else {
+        text->size = 2;
+        sprintf(text->hex, "%04x", read_short(&ci->code[inst->address - ci->address], ci->endianity));
+    }
+
     if (inst->flags == FLAG_INVALID) {
-        memset((void*)text, 0, sizeof(_TInst));
         strcpy(str, "UNDEFINED");
         return;
     }
-    
-    strcpy(str, (const char*)&_THUMB_MNEMONICS[inst->opcode + 1]);
+
+    /* Start with the mnemonic for the instruction. */
+    strcpy(str, GET_MNEMONIC_NAME(inst->opcode));
     strcat(str, " ");
 
     /* For now we know there's always at least a single operand. */
@@ -125,11 +138,14 @@ void armstorm_format(const _DInst* inst, _TInst* text, _EndianityType endianity)
         needComma = 0;
     }
 
+    /* Add the rest of the operands. */
     for (unsigned int i = 1; ((inst->operands[i].type != OPERAND_NONE) && (i < 3)); i++) {
         if (needComma) strcat(str, ", ");
         format_operand(str, &inst->operands[i], inst);
         needComma = 1;
     }
+
+    /* Append brackets if required. */
     if (isReglist) strcat(str, "}");
     if (inst->flags & FLAG_MEMORY) strcat(str, "]");
 }

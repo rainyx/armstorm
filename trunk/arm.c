@@ -22,12 +22,6 @@
 #include "armstorm.h"
 #include "common.h"
 
-static unsigned long read_long(const unsigned char* ptr, _EndianityType endianity)
-{
-    //endianity;
-    return *(unsigned long*)ptr;
-}
-
 _DecodeResult decompose_arm(_DecomposeInfo* info)
 {
     return DECRES_SUCCESS;
