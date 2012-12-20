@@ -66,29 +66,41 @@ typedef struct {
     /* __OUT */ short value;         /* Value of operand according to its type. */
 } _Operand;
 
+/* Flags type for an instruction. */
+typedef unsigned char _iflags;
+
+/* Instruction wasn't found or has an invalid operand. */
+#define FLAG_INVALID    1
+/* One of the load or store instructions. */
+#define FLAG_MEMORY     2
+/* The big inst means it's 4 bytes long instruction, otherwise 2. */
+#define FLAG_BIG_INST   4
+/* Immediate operand is be sign extended. */
+#define FLAG_SIGNED_IMM 8
+
 typedef struct {
-    /* __OUT */ _AddressType address;   /* Address of current instruction. */
-    /* __OUT */ _AddressType target;    /* Target address of a branch instruction. */
-    /* __OUT */ unsigned short opcode;  /* The opcode id in _ThumbOpcodeType. */
-    /* __OUT */ unsigned char flags;    /* */
-    /* __OUT */ _Operand operands[3];   /* Up to three operands of struct _Operand. */
+    /* __OUT */ _AddressType   address;     /* Address of current instruction. */
+    /* __OUT */ _AddressType   target;      /* Target address of a branch instruction. */
+    /* __OUT */ unsigned short opcode;      /* The opcode id in _ThumbOpcodeType. */
+    /* __OUT */ _iflags        flags;       /* See flags above. */
+    /* __OUT */ _Operand       operands[3]; /* Up to three operands of struct _Operand. */
 } _DInst;
 
 typedef struct {
-    /* __IN */ _AddressType address;                    /* An ODD ADDRESS will cause to decode THUMB instructions! */
-    /* __IN */ const unsigned char* code;               /* Pointer to code bytes. (Should be aligned to 2/4). */
-    /* __IN */ unsigned int codeLength;                 /* Must be even, a multiple of 2/4 depends on mode. */
-    /* __IN */ _EndianityType endianity;                /* Decode instructions in big/little endian. */
-    /* __IN */ unsigned int maxInstructions;            /* Number of instructions that can be written to 'instructions'. */
+    /* __IN */ _AddressType         address;         /* An ODD ADDRESS will cause to decode THUMB instructions! */
+    /* __IN */ const unsigned char* code;            /* Pointer to code bytes. (Should be aligned to 2/4). */
+    /* __IN */ unsigned int         codeLength;      /* Must be even, a multiple of 2/4 depends on mode. */
+    /* __IN */ _EndianityType       endianity;       /* Decode instructions in big/little endian. */
+    /* __IN */ unsigned int         maxInstructions; /* Number of instructions that can be written to 'instructions'. */
 
-    /* __OUT */ _DInst* instructions ;                  /* Decoded instructions are written to 'instructions'. */
+    /* __OUT */ _DInst*      instructions ;            /* Decoded instructions are written to 'instructions'. */
     /* __OUT */ unsigned int decodedInstructionsCount;  /* Number of decoded instructions. */
 } _DecomposeInfo;
 
-#define GET_REGISTER_NAME(r) (unsigned char*)_REGISTERS[(r)]
+#define GET_REGISTER_NAME(r) ((const char*)_REGISTERS[(r)])
 extern char* _REGISTERS[];
 
-#define GET_MNEMONIC_NAME(m) (&_THUMB_MNEMONICS[(m + 1)])
+#define GET_MNEMONIC_NAME(m) ((const char*)(&_THUMB_MNEMONICS[(m + 1)]))
 extern const unsigned char _THUMB_MNEMONICS[];
 
 extern _DecodeResult armstorm_decompose(_DecomposeInfo* info);
@@ -100,6 +112,6 @@ typedef struct {
     char instruction[40];
 } _TInst;
 
-extern void armstorm_format(const _DInst* inst, _TInst* text, _EndianityType endianity);
+extern void armstorm_format(const _DecomposeInfo* ci, const _DInst* inst, _TInst* text);
 
 #endif /* armstorm_h */
