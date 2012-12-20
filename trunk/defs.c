@@ -1,5 +1,5 @@
 /*
- armstorm_defs.c
+ defs.c
  
  http://code.google.com/p/armstorm/
  distorm at gmail dot com
